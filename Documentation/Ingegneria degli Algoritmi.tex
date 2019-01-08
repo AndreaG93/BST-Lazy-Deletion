@@ -1,0 +1,561 @@
+\documentclass[10pt,a4paper,titlepage]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+
+% -------------------------------------------- %
+% Personalizzazione degli snippet di codice...
+% -------------------------------------------- %
+\lstset{
+language=Python,
+basicstyle=\small\ttfamily,			
+keywordstyle=\color{blue},
+commentstyle=\color{gray},			
+stringstyle=\color{black},			
+numbers=left,						
+numberstyle=\tiny,					
+stepnumber=1,						
+breaklines=true						
+}
+
+\hyphenation{binary-Search-Tree-AVL}
+
+\title{Progetto in itinere del corso di Ingegneria degli algoritmi a.a. 2017-2018}
+\author{Andrea Graziani - matricola 0189326}
+\date{15 dicembre 2017}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+
+\section{Un albero binario di ricerca con \textit{lazy deletion}}
+
+\subsection{Descrizione}
+
+Un albero binario di ricerca con \textit{lazy deletion} rappresenta un particolare struttura dati che, a differenza dei classici BST, utilizza un differente approccio per gestire la rimozione dei nodi presenti all'interno dell'albero. Come vedremo anche in base a valutazioni sperimentali, l'uso della \textit{lazy deletion} applicato agli alberi di ricerca, che d'ora in avanti supponiamo di tipo AVL, permette di ottenere prestazioni migliori in alcuni contesti rispetto ai classici BST. 
+
+\subsubsection{Operazione \texttt{search}}
+
+Grazie alla \textit{proprietà di ricerca}\footnote{Cfr. Camil Demetrescu \& Irene Finocchi \& Giuseppe F. Italiano - \textit{Algoritmi e strutture dati, Seconda edizione}, McGraw-Hill, pp. 142-143, Definizione 6.1}, l'implementazione dell'operazione \texttt{search} è molto semplice. Infatti, qualora volessimo eseguire la ricerca di un nodo $x$ all'interno di un albero, dobbiamo innanzitutto confrontare la chiave $k$ che stiamo cercando con la chiave $v$ della radice dell'albero di ricerca: se sono uguali e la radice risulti contrassegnata come \textit{non} eliminata abbiamo trovato l'elemento, altrimenti proseguiamo la ricerca nel sotto-albero sinistro qualora $k < v$ o in quello destro se $k > v$. Ripetiamo la ricerca a partire dal figlio sinistro o destro della radice usando la stessa strategia, finché non troviamo la prima occorrenza \textit{valida} di un nodo avente chiave pari a $k$; in caso di insuccesso avremo $x \notin T$.
+
+Precisiamo che l'algoritmo, una volta trovato un nodo avente chiave corrispondente a quella cercata, verifica che quest'ultimo non sia stato precedentemente contrassegnato come eliminato: in caso affermativo, il nodo viene scartato e la ricerca riprende a partire dal sotto-albero sinistro del nodo in questione\footnote{Vedi l'implementazione dell'operazione \texttt{insert}.}, altrimenti esso verrà restituito alla funzione chiamante.
+
+Dal momento che dopo ogni confronto, se non abbiamo trovato l'elemento, scendiamo di un livello nell'albero $T$, il tempo richiesto dalla ricerca $O(h)$ nel caso peggiore, dove $h$ è pari all'altezza dell'albero; poiché l'albero $T$ in questione è AVL, se esso possiede $n$ allora ha altezza pari $O(\log n)$\footnote{Cfr. \textit{ivi}, pp. 149, Corollario 6.1} e dunque il tempo di esecuzione dell'operazione \texttt{search} sarà $O(\log n)$\footnote{Cfr. \textit{ivi}, pp. 155, Teorema 6.2}.
+Lo pseudo-codice dell'operazione \texttt{search} è riportato nella figura \ref{alg:testa}.
+
+% -------------------------------------------------------------------------------------------------------------- %
+% Pseudocodice dell'algoritmo di ricerca
+% -------------------------------------------------------------------------------------------------------------- %
+\begin{center}
+\begin{algorithm}
+\caption{Search}\label{alg:testa}
+\begin{algorithmic}[1]
+\Function{Search}{$\textit{key}$}
+
+\State $\textit{currentNode} \gets \text{radice dell'albero}$
+\While{$\textit{currentNode} \neq \text{NULL}$}
+
+
+\If {$(key > \textit{currentNode})$}
+	\State $\textit{currentNode} \gets \text{figlio destro di \textit{currentNode}}$
+\ElsIf{$(key < \textit{currentNode})$}
+	\State $\textit{currentNode} \gets \text{figlio sinistro di \textit{currentNode}}$
+\Else 
+	\If {$(\textit{currentNode.isDeleted})$}
+ 		\State $\textit{currentNode} \gets \text{figlio sinistro di \textit{currentNode}}$
+ 	\Else 	
+ 		\State \textbf{break}
+ 		
+\EndIf
+\EndIf
+\EndWhile
+
+\State \Return $\textit{currentNode}$
+
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+\end{center}
+% -------------------------------------------------------------------------------------------------------------- %
+\subsubsection{Operazione \texttt{delete}}
+
+Implementare l'operazione \texttt{delete} di un albero di ricerca AVL con \textit{lazy deletion} è molto più semplice rispetto ai classici BST; infatti, una volta individuato il nodo da eliminare all'interno dell'albero di ricerca, operazione che, come potete notare anche dallo pseudo-codice in figura \ref{alg:testb}, si può effettuare utilizzando la stessa strategia usata nell'implementazione dell'operazione \texttt{search}, invece di rimuovere fisicamente il nodo bersaglio, procedura che potrebbe comportare costi aggiuntivi per mantenere il bilanciamento dell'albero, l'eliminazione del nodo avviene semplicemente contrassegnando il nodo obiettivo come \textit{eliminato}; ciò è possibile modificando opportunamente un attributo booleano che verrà usato in seguito per stabilire se il nodo specificato sia effettivamente eliminato o meno. 
+
+Ovviamente, se il nodo da eliminare risultasse già contrassegnato come eliminato, quest'ultimo viene ignorato e la ricerca riprende a partire dal suo figlio sinistro\footnote{Vedi l'implementazione dell'operazione \texttt{insert}.}.
+
+Chiaramente il tempo di esecuzione dell'operazione \texttt{delete} è pari $O(\log n)$ nel caso peggiore\footnote{\textit{ibid.}}.
+
+% -------------------------------------------------------------------------------------------------------------- %
+% Pseudocodice dell'algoritmo di rimozione
+% -------------------------------------------------------------------------------------------------------------- %
+\begin{center}
+\begin{algorithm}
+\caption{DeleteNode}\label{alg:testb}
+\begin{algorithmic}[1]
+\Function{DeleteNode}{$\textit{key}$}
+
+\State $\textit{currentNode} \gets \text{radice dell'albero}$
+\While{$\textit{currentNode} \neq \text{NULL}$}
+
+
+\If {$(key > \textit{currentNode})$}
+	\State $\textit{currentNode} \gets \text{figlio destro di \textit{currentNode}}$
+\ElsIf{$(key < \textit{currentNode})$}
+	\State $\textit{currentNode} \gets \text{figlio sinistro di \textit{currentNode}}$
+\Else 
+	\If {$(\textit{currentNode.isDeleted})$}
+ 		\State $\textit{currentNode} \gets \text{figlio sinistro di \textit{currentNode}}$
+ 	\Else 	
+ 		\State $\textit{currentNode.isDeleted} \gets True$ 
+ 		\State \Return True
+ 		
+\EndIf
+\EndIf
+\EndWhile
+
+\State \Return False
+
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+\end{center}
+% -------------------------------------------------------------------------------------------------------------- %
+
+\newpage
+\subsubsection{Operazione \texttt{insert}}
+
+L'operazione di inserimento di un nodo, di costo pari $O(\log n)$ nel caso peggiore\footnote{\textit{ibid.}}, sebbene di semplice implementazione, deve essere adattata per gestire la tecnica \textit{lazy deletion}.
+
+Supponiamo per un istante che l'albero $T$ non contenga nodi contrassegnati come eliminati. In tal caso, l'operazione \texttt{insert} è equivalente a quella di un comune BST dove un nuovo nodo con chiave $x$ viene sempre inserito come foglia dell'albero di ricerca. L'operazione \texttt{insert} può quindi essere implementata in due passi:
+
+\begin{enumerate}
+\item Ricerca del nodo $v$ che diventerà genitore del nuovo nodo.
+\item Creazione del nuovo nodo con chiave $x$ che diventerà figlio sinistro di $v$ qualora $ x \leqslant chiave(v)$ o destro qualora $ x > chiave(v)$, in accordo alla proprietà di ricerca dei BST;
+\end{enumerate}
+
+Se durante la ricerca di $v$ viene trovato un nodo $d$ contrassegnato come eliminato, l'algoritmo, nel rispetto della proprietà di ricerca, verifica la possibilità di eseguire la sostituzione del nodo $d$ con $x$, prima di riprendere la ricerca di $v$.
+
+Qualora ciò sia possibile, l'algoritmo effettua la sostituzione impostando $chiave(d) = chiave(x)$ e $valore(d) = valore(x)$ e modificando opportunamente l'attributo booleano usato per contraddistinguere i nodi eliminati, terminando così la sua esecuzione; facciamo notare che in questo caso non vi è necessità di allocare un nuovo nodo, pertanto l'altezza dell'albero e la sua occupazione di memoria rimangono inalterate.
+
+Se dopo l'esecuzione dell'operazione di \texttt{insert} l'albero risultasse sbilanciato, è sufficiente eseguire una rotazione semplice o doppia sul nodo critico per ribilanciarlo in altezza\footnote{Cfr. \textit{ivi}, pp. 153, Lemma 6.2}. Lo pseudo-codice dell'operazione \texttt{insert} è riportato nella figura \ref{alg:testc}.
+
+
+
+% -------------------------------------------------------------------------------------------------------------- %
+% Pseudocodice dell'algoritmo di inserimento
+% -------------------------------------------------------------------------------------------------------------- %
+\begin{center}
+\begin{algorithm}
+\caption{Insert}\label{alg:testc}
+\begin{algorithmic}[1]
+\Function{Insert}{$\text{albero \textit{T}}, \textit{key}, \textit{value}$}
+
+\If {$(\text{\textit{T} è vuoto})$}
+	\State $\text{crea il nuovo nodo e impostalo come radice dell'albero \textit{T}}$
+	\State \Return
+\Else
+	\State $\textit{currentNode} \gets \text{radice dell'albero}$
+	\State $\textit{parentNode} \gets \text{NULL}$
+	\State $\textit{insertToLeft} \gets \text{True}$
+	
+	\While{$\textit{currentNode} \neq \text{NULL}$}
+	
+	\State $\textit{parentNode} \gets \textit{currentNode.parent}$	
+	
+	\If {$(\text{\textbf{not} \textit{currentNode.isDeleted}})$}
+		
+		\If {$(key > \textit{currentNode})$}
+			\State $\textit{currentNode} \gets \text{figlio destro di \textit{currentNode}}$
+			\State $\textit{insertToLeft} \gets \text{False}$
+		\Else
+			\State $\textit{currentNode} \gets \text{figlio sinistro di \textit{currentNode}}$
+			\State $\textit{insertToLeft} \gets \text{True}$
+		\EndIf
+	
+	\Else
+		\If {$(\text{\textit{currentNode} ha un figlio destro con chiave \textit{k} > \textit{key}})$}
+			\State $\textit{currentNode} \gets \text{figlio destro di \textit{currentNode}}$
+			\State $\textit{insertToLeft} \gets \text{False}$
+		\ElsIf{$(\text{\textit{currentNode} ha un figlio sinistro con chiave \textit{k} < \textit{key}})$}
+			\State $\textit{currentNode} \gets \text{figlio sinistro di \textit{currentNode}}$
+			\State $\textit{insertToLeft} \gets \text{True}$
+		\Else
+			\State $\text{Sostituisci \textit{currentNode} con \textit{newNode}}$
+			\State \Return
+		\EndIf
+	
+	\EndIf
+	\EndWhile
+
+\State $\textit{newNode} \gets \text{alloca un nuovo oggetto \textit{Node(key, value)}}$
+
+\If {$(\textit{insertToLeft})$}
+ 	\State $\textit{parentNode.leftSon} \gets \textit{currentNode.leftSon}$
+\Else 	
+ 	\State $\textit{parentNode.rightSon} \gets \textit{currentNode.rightSon}$
+\EndIf
+\EndIf
+\State \Return 
+
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+\end{center}
+% -------------------------------------------------------------------------------------------------------------- %
+\newpage
+\subsection{Vantaggi e svantaggi}
+
+Un albero binario siffatto presenta almeno due vantaggi:
+
+\begin{description}
+
+\item[Facile implementazione] Come abbiamo già visto, l'utilizzo della tecnica \textit{lazy deletion} rende l'operazione di rimozione dei nodi molto semplice da implementare.
+
+\item[Efficienza] L'algoritmo risulta essere molto efficiente in quei scenari d'uso in cui sono previsti molti inserimenti in grado di rimpiazzare un nodo precedentemente contrassegnato come eliminato per due motivi:
+\begin{enumerate}
+\item Non sono necessarie operazioni di bilanciamento.
+\item Si può evitare l'allocazione di un nuovo nodo copiando semplicemente il valore e la chiave da inserire all'interno del nodo da sostituire e contrassegnarlo come non eliminato.
+\end{enumerate}
+In modo analogo, anche le operazioni di eliminazione dei nodi sono molto efficienti dal momento che richiedono semplicemente la modifica di un attributo booleano. Per rendersi conto delle prestazioni raggiunte dagli BST con \textit{lazy deletion} è sufficiente osservare la tabella \ref{table:diana}.
+
+\begin{table}
+\caption{Tempi esecuzione sperimentali (espessi in $\mu s$) ottenuti da vari test}\label{table:diana}
+\begin{center}
+\begin{tabular}{ccc}
+
+\toprule
+\textbf{Operazione} & \textbf{BST AVL} & \textbf{BST AVL (\textit{lazy deletion})} \\
+
+\midrule
+
+\texttt{delete} & 50 & 4 \\
+\texttt{insert} & 41 & 9 \\
+\texttt{search} & 5 & 8 \\
+
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+
+
+
+
+
+
+\end{description}
+
+Tuttavia ci sono un serie di svantaggi che occorre analizzare:
+
+\begin{description}
+
+\item[Incremento dell'altezza dell'albero] Dal momento che i nodi non vengono fisicamente eliminati dall'albero di ricerca, benché contrassegnati come eliminati, questi, continuando a persistere all'interno dell'albero, determinano un aumento dell'altezza dell'albero.
+
+\item[Degradamento delle prestazioni] Come conseguenza del punto precedente, soprattutto in tutti quei scenari di utilizzo in cui avvengono molte cancellazioni senza reinserimenti capaci di rimpiazzare i nodi eliminati, tutte le operazioni sui nodi subiscono un degradamento delle prestazioni. Per esempio la ricerca di un nodo all'interno dell'albero potrebbe richiedere la visita ("\textit{inutile}") di molti nodi contrassegnati come eliminati prima di raggiungere, se esiste, il nodo richiesto; vedere a tal proposito i risultati della tabella \ref{table:diana}.
+
+\item[Spreco di memoria] Dal momento che, come già detto, i nodi eliminati, continuando a persistere all'interno dell'albero, qualora quest'ultimi non venissero rimpiazzati, causano un enorme spreco di memoria.
+
+\end{description}
+
+\subsection{Una possibile ottimizzazione}
+
+Per limitare lo spreco di memoria e il degradamento delle prestazioni della struttura dati a causa della crescita senza controllo del numero di nodi contrassegnati come eliminati, eventualità possibile qualora il numero di inserimenti in grado di sostituire i suddetti nodi sia insufficiente, l'albero di ricerca che abbiamo implementato permette, \textit{se esplicitamente richiesta dall'utente}, la possibilità di eseguire delle procedure di ottimizzazione con lo scopo di limitare il numero di nodi eliminati.
+
+Questo è stato fatto con una semplice modifica alla procedura \texttt{search}: come si può vedere dallo pseudo-codice in figura \ref{alg:testd}, durante un'ordinaria operazione di ricerca, l'algoritmo mantiene un riferimento a tutti i nodi contrassegnati come eliminati incontrati durante il percorso; se richiesto dall'utente, prima di ritornare il risultato dell'operazione, l'algoritmo procede all'eliminazione fisica dei suddetti nodi riducendone così il numero e aumentando così le prestazioni delle operazioni di ricerca successive. Potete osservare le differenze di prestazioni dalla tabella \ref{table:akko} da cui notiamo il costo maggiore dell'operazione \texttt{search-2} rispetto a \texttt{search} e un tempo di esecuzione inferiore delle successive \texttt{search}.  
+ 
+% -------------------------------------------------------------------------------------------------------------- %
+% Pseudocodice dell'algoritmo di ricerca 2
+% -------------------------------------------------------------------------------------------------------------- %
+\begin{center}
+\begin{algorithm}
+\caption{Search-2}\label{alg:testd}
+\begin{algorithmic}[1]
+\Function{Search-2}{$\textit{key}, \text{bool \textit{optimizationAllowed}}   $}
+
+\State $\textit{currentNode} \gets \text{radice dell'albero}$
+\State $\textit{deletedNodeList} \gets \text{nuova lista vuota}$
+\While{$\textit{currentNode} \neq \text{NULL}$}
+
+\If {$(\text{\textit{optimizationAllowed} \textbf{and} \textit{currentNode.isDeleted}})$}
+	\State $\text{Aggiungi \textit{currentNode} a \textit{deletedNodeList}}$
+\EndIf
+
+\If {$(key > \textit{currentNode})$}
+	\State $\textit{currentNode} \gets \textit{currentNode.rightSon}$
+\ElsIf{$(key < \textit{currentNode})$}
+	\State $\textit{currentNode} \gets \textit{currentNode.leftSon}$
+\Else 
+	\If {$(\textit{currentNode.isDeleted})$}
+ 		\State $\textit{currentNode} \gets \textit{currentNode.leftSon}$
+ 	\Else 	
+ 		\State \textbf{break}
+ 		
+\EndIf
+\EndIf
+\EndWhile
+
+
+\ForAll{$\text{\textit{item} \textbf{in} \textit{deletedNodeList}}$} 
+	\State $\text{Elimina fisicamente \textit{item}}$
+\EndFor
+
+\State \Return $\textit{currentNode}$
+
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+\end{center}
+% -------------------------------------------------------------------------------------------------------------- %
+
+
+\begin{table}
+\caption{Analisi sperimentale delle ricerche}\label{table:akko}
+\begin{center}
+\begin{tabular}{lc}
+
+\toprule
+Operazione & Tempo (\textit{s}) \\
+
+\midrule
+
+\texttt{search} & 0.01590916500026651192 \\
+\texttt{search-2} & 0.12874723000095400494 \\
+\texttt{search} eseguita dopo \texttt{search-2} & 0.00748537400068016723 \\
+
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+
+\subsection{Scenari di utilizzo}
+
+Dall'analisi precedente si evince chiaramente che le prestazioni di un albero binario di ricerca che fa uso della \textit{lazy deletion} dipendono in particolar modo dal rapporto esistente tra il numero di cancellazioni e il numero di inserimenti capaci di sostituire i nodi eliminati; se c'è uno squilibrio a sfavore di quest'ultimi, si verificherà col tempo un degradamento delle prestazioni tali da dover adottare contromisure come la \texttt{search-2}.
+
+In ogni caso esaminiamo ora un possibile scenario di utilizzo: i \textit{database}.
+
+Supponiamo, quindi, di dover implementare un database utilizzando un albero binario di ricerca AVL che fa uso della \textit{lazy deletion}: in questo contesto, i record del nostro database saranno rappresentati dai nodi mentre la tabella dall'albero. Possiamo utilizzare la chiave dei nodi come chiave primaria della tabella per individuare univocamente un record.
+
+Supponiamo inoltre che l'amministratore del sistema, per motivi di sicurezza e prevenzione riguardante la perdita dei dati, decidesse di avere più copie della base dati su più supporti fisici separati. Avendo la necessità di mantenere le varie copie della basi dati sincronizzate e coerenti fra loro, sarà quindi necessario replicare tutte le operazioni di aggiornamento a tutte le copie: questo comporterà inevitabilmente un degradamento delle prestazioni. 
+
+Evidentemente, data la ridondanza dei dati su più supporti, l'operazione di eliminazione di un nodo potrebbe rivelarsi molto costosa motivo per cui l'uso della tecnica \textit{lazy deletion} potrebbe rivelarsi una buona soluzione qualora sia prevista però la possibilità di sostituire nodi precedentemente eliminati altrimenti si verificherà una crescita senza controllo della dimensione della base dati provocata dalla presenza di enorme mole di nodi eliminati.
+
+Qualora si volesse privilegiare le operazioni di ricerca, mantenendo i vantaggi della \textit{lazy deletion}, l'amministratore del sistema potrebbe anche adottare anche la strategia descritta in \texttt{search-2} aumentando così la velocità di accesso a nodi di particolare interesse per gli utenti.
+
+\section{Implementazione}
+
+Da un punto di vista implementativo, la realizzazione dell'albero binario di ricerca AVL con \textit{lazy deletion} è stata effettuata utilizzando le seguenti classi:
+
+\begin{description}
+\item[\texttt{binarySearchTreeAVL}] usata per modellare un comune BST AVL.
+\item[\texttt{binarySearchTreeLazyDeletionAVL}] figlia della classe precedente, modella il BST AVL con \textit{lazy deletion}.
+\item[\texttt{binarySearchTreeNode}] modella un nodo di un comune albero di ricerca.
+\item[\texttt{binarySearchTreeNodeAVL}] questa classe, figlia di quella precedente, modella un nodo di un albero di ricerca AVL.
+\item[\texttt{binarySearchTreeNodeAVLwithLazyDeletion}] questa classe, figlia della precedente, modella un nodo di un BST AVL con \textit{lazy deletion}.
+
+\item[\texttt{Queue}] modella una coda.\footnote{Cfr. \textit{ivi}, pp. 70-71}
+
+\item[\texttt{BinarySearchTreeLazyDelectionAVLTest}] questa classe contiene metodi utilizzati per eseguire test.
+
+\end{description}
+ 
+Per ovvi motivi di spazio, omettiamo in questa sede una descrizione dettagliata delle varie classi e dei loro metodi in ogni caso già presente all'interno del codice sorgente. Ricordiamo che per ottenere informazioni dettagliate sull'interfaccia di tutti i metodi definiti nelle varie classi è sufficiente digitare \texttt{help(<nome della classe>)} dalla console dell'interprete \textit{Python} dopo aver eseguito l'importazione della classe desiderata.
+
+Riportiamo per comodità le implementazioni delle operazioni \texttt{search}, \texttt{delete} e \texttt{insert} descritte all'interno della classe \texttt{binarySearchTreeLazyDeletionAVL}.
+
+\subsection{Operazione \texttt{search}}
+
+\begin{lstlisting}[frame=lines]
+def search(self, key, allowRestructuring):
+    """
+    This function is used to search first occurrence of a node with specified key into tree.
+        
+    @param key: Represents a key. 
+    @param allowRestructuring: A boolean value used to enable or disable 'tree restructuring'.
+    @return: If specified node exists, returns it; otherwise it returns 'None'
+    """
+         
+    # This list object is used to store met invalid nodes...
+    invalidNodeList = list()
+    currentNode = self._rootNode
+              
+    # Searching...
+    # ---------------------------------------------------- #
+    while(currentNode):
+              
+        # Keeping track invalid nodes...
+        if (allowRestructuring and (not currentNode._isValid)):
+            invalidNodeList.append(currentNode)
+              
+        # CASE 1:
+        # ------------------------------------------------ #
+        if (key < currentNode._key):                              
+            currentNode = currentNode._leftSon         
+            
+        # CASE 2:
+        # ------------------------------------------------ #
+        elif(key > currentNode._key):           
+            currentNode = currentNode._rightSon  
+              
+        # CASE 3:
+        # ------------------------------------------------ #
+        else:  
+            if (currentNode._isValid):       
+                break
+            else:
+                currentNode = currentNode._leftSon
+               
+    # If requested, delete found invalid nodes physically...
+    # ---------------------------------------------------- #
+    for item in invalidNodeList:
+        self.deleteNode(item)
+              
+    return currentNode
+\end{lstlisting}
+
+\subsection{Operazione \texttt{delete}}
+
+\begin{lstlisting}[frame=lines]
+def delete(self, key):
+    """
+    This function is used to delete first occurrence of a node with specified key from tree.
+        
+    @param key: Represents a key. 
+    @return: A boolean value: 'True' if specified node is correctly deleted, otherwise 'False'.
+    """
+        
+    currentNode = self._rootNode
+              
+    # Searching...
+    # ---------------------------------------------------- #
+    while(currentNode):
+                
+        # CASE 1:
+        # ---------------------------------------------------- #
+        if (key < currentNode._key):                              
+            currentNode = currentNode._leftSon         
+            
+        # CASE 2:
+        # ---------------------------------------------------- #
+        elif(key > currentNode._key):           
+            currentNode = currentNode._rightSon  
+              
+        # CASE 3:
+        # ---------------------------------------------------- #
+        else:  
+            if (currentNode._isValid):
+                currentNode._isValid = False
+                return True
+            else:
+                currentNode = currentNode._leftSon
+                        
+    return False
+\end{lstlisting}
+
+\subsection{Operazione \texttt{insert}}
+
+\begin{lstlisting}[frame=lines]
+def insert(self, key, value):
+    """
+    This function is used to insert a new (key, value) pair into tree.
+        
+    @param key: Represents a key.      
+    @param value: Represents a value. 
+    """
+        
+    # If tree is empty, newly created node become root...
+    # ---------------------------------------------------- #
+    if (not self._rootNode):
+        self._rootNode = binarySearchTreeNodeAVLwithLazyDeletion(key, value)
+        return
+    else:
+            
+        currentNode = self._rootNode
+        parentNode = None
+        insertToLeft = True
+            
+        # Search parent of newly created node...
+        # ------------------------------------------------ #
+        while (currentNode is not None):
+                
+            parentNode = currentNode
+                
+            # Node is not deleted...
+            # -------------------------------------------#
+            if (currentNode._isValid):
+                    
+                # CASE 1:
+                # ---------------------------------------- #
+                if (key <= currentNode._key):                
+                    currentNode = currentNode._leftSon
+                    insertToLeft = True
+                        
+                # CASE 2:
+                # -------------------------------------- #
+                else:
+                    currentNode = currentNode._rightSon
+                    insertToLeft = False
+                        
+            # Node is deleted...
+            # ------------------------------------------ #      
+            else:   
+                    
+                # CASE 1:
+                # --------------------------------------- #
+                if (currentNode.hasRightSon() and (key > currentNode._rightSon._key)):     
+                    currentNode = currentNode._rightSon
+                    insertToLeft = False
+                        
+                # CASE 2:
+                # ---------------------------------------- #
+                elif (currentNode.hasLeftSon() and (key < currentNode._leftSon._key)):
+                        
+                    currentNode = currentNode._leftSon
+                    insertToLeft = True
+                        
+                # CASE 3:
+                # -------------------------------------- #
+                else:
+                        
+                    # Copy data into deleted node...
+                    # ---------------------------------- #
+                    currentNode._isValid = True
+                    currentNode._key = key
+                    currentNode._value = value
+                    return
+              
+        # Now allocate a new 'binarySearchTreeNodeAVLwithLazyDeletion' object...
+        # ----------------------------------------------- #
+        newNode = binarySearchTreeNodeAVLwithLazyDeletion(key, value) 
+            
+        # Add parent...
+        newNode._parent = parentNode 
+                          
+        # Insert new node...
+        # ----------------------------------------------- #
+        if (insertToLeft):      
+            parentNode._leftSon = newNode
+            newNode._isLeftSon = True
+                
+        else:
+            parentNode._rightSon = newNode
+            newNode._isLeftSon = False
+                
+        # If necessary, update balance factor...
+        # ----------------------------------------------- #
+        if (parentNode.hasOnlyOneSon()):
+            self._updateNodeSubtreesHeightAlongTree(newNode)
+\end{lstlisting}
+
+\end{document}
